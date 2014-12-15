@@ -1,0 +1,8 @@
+{
+  "framework": "jasmine",
+  "src_files": [
+    "pos_v1/spec/fixtures.js",
+    "pos_v1/src/main.js",
+    "pos_v1/spec/main-spec.js"
+  ]
+}
