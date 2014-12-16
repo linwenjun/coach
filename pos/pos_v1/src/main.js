@@ -28,17 +28,17 @@ function parseList(arr) {
         good = /^(\w{10})-?(\d*)/.exec(arr[i]);
         code = good[1];
         count = parseInt(good[2]) || 1;
-        rawList[code] = rawList[code] || 0;
-        rawList[code] += count;
+        if(!rawList[code]) {
+            detail = getDetail(code);
+            rawList[code] = {}
+            rawList[code]['count'] = 0;
+            rawList[code]['name']  = detail.name;
+            rawList[code]['unit']  = detail.unit;
+            rawList[code]['price'] = detail.price;
+        }
+        rawList[code]['count'] += count;
     }
 
-    for(item in rawList) {
-        var detail = getDetail(item);
-        var count = rawList[item];
-        detail.count = count;
-        rawList[item] = detail;
-    }
-    
     return rawList;
 }
 
