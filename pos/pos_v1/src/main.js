@@ -4,10 +4,10 @@
  */
 function getDetail(code) {
     var items = loadAllItems(),
-        result;
+        result, i, item;
 
-    for(var i=0; i<items.length; i++) {
-        var item = items[i];
+    for(i=0; i<items.length; i++) {
+        item = items[i];
         if(item.barcode == code) {
             result = item;
             break;
@@ -46,8 +46,8 @@ function parseList(arr) {
  * calc discount
  */
 function promote(list) {
-    var promotions = loadPromotions();
-    var type, barcodes, code, item, i;
+    var promotions = loadPromotions(),
+        type, barcodes, code, item, i;
 
     for(i=0; i<promotions.length; i++) {
         type = promotions[i]['type'];
