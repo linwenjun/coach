@@ -21,9 +21,9 @@ var PromotionPolicy = {
 }
 
 var TEMPLATE_DEFINITION = /\{\{([^\}]*)\}\}/g;
-var GOOD_TEMPLATE = '名称：{{name}}，数量：{{amount}}，单价：{{fPrice}}(元)，小计：{{subTotal}}(元)';
-var PROMOTION_TEMPLATE = '名称：{{name}}，数量：{{amount}}';
-var RECEIPT_TEMPLATE = '***<没钱赚商店>购物清单***\n' +
+var GOOD_TEMPLATE       = '名称：{{name}}，数量：{{amount}}，单价：{{formattedPrice}}(元)，小计：{{subTotal}}(元)';
+var PROMOTION_TEMPLATE  = '名称：{{name}}，数量：{{amount}}';
+var RECEIPT_TEMPLATE    = '***<没钱赚商店>购物清单***\n' +
                         '{{payList}}\n' +
                         '----------------------\n' +
                         '挥泪赠送商品：\n' +
@@ -74,7 +74,7 @@ function getDetailedList(goodArr) {
                 'price'    : detail.price,
                 'freeCount': 0,
                 'promote'  : PromotionPolicy[promoteType],
-                'fPrice'   : formatCurrency(detail.price)
+                'formattedPrice'   : formatCurrency(detail.price)
             };
         }
 
@@ -126,10 +126,11 @@ function renderList(rawList) {
         item = rawList[code];
         if(item.actualCount > 0) {
             subtotal = item.price * item.actualCount;
+
             payList.push(formatStr(GOOD_TEMPLATE, {
                 name     : item.name,
                 amount   : item.count + item.unit,
-                fPrice   : item.fPrice,
+                formattedPrice   : item.formattedPrice,
                 subTotal : formatCurrency(subtotal)
             }));
 
