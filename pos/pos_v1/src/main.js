@@ -1,8 +1,42 @@
 (function(window) {
+
+function formatStr(str, data) {
+    return str.replace(TEMPLATE_DEFINITION, function($0, $1) {
+        return data[$1] || $0;
+    })
+}
+
+/**
+ * format the currency
+ */
+function formatCurrency(price) {
+    return Math.floor(price) + '.' +(price * 100).toString().substr(-2); 
+}
+
+var PromotionPolicy = {
+    "NORMAL": function() {},
+    "BUY_TWO_GET_ONE_FREE": function(good) {
+        good.freeCount = Math.floor(good.count / 3);
+    }
+}
+
+var TEMPLATE_DEFINITION = /\{\{([^\}]*)\}\}/g;
+var GOOD_TEMPLATE = '名称：{{name}}，数量：{{amount}}，单价：{{fPrice}}(元)，小计：{{subTotal}}(元)';
+var PROMOTION_TEMPLATE = '名称：{{name}}，数量：{{amount}}';
+var RECEIPT_TEMPLATE = '***<没钱赚商店>购物清单***\n' +
+                        '{{payList}}\n' +
+                        '----------------------\n' +
+                        '挥泪赠送商品：\n' +
+                        '{{freeList}}\n' +
+                        '----------------------\n' +
+                        '总计：{{total}}(元)' + '\n' +
+                        '节省：{{saved}}(元)' + '\n' +
+                        '**********************'
+
 /**
  * fetch the detail
  */
-function getDetail(code) {
+function getGoodDetail(code) {
     var items = loadAllItems(),
         result, i, item;
 
@@ -20,73 +54,70 @@ function getDetail(code) {
 /**
  * parse the list
  */
-function parseList(arr) {
-    var rawList = {},
-        good, code, count, i;
+function getDetailedList(goodArr) {
+    var goodList = {},
+        promoteType, good, code, count, i;
 
-    for(i = 0; i < arr.length; i++) {
-        good = /^(\w{10})-?(\d*)/.exec(arr[i]);
+    for(i = 0; i < goodArr.length; i++) {
+        good = /^(\w{10})-?(\d*)/.exec(goodArr[i]);
         code = good[1];
-        count = parseInt(good[2]) || 1;
-        if(!rawList[code]) {
-            detail = getDetail(code);
-            rawList[code] = {}
-            rawList[code]['count'] = 0;
-            rawList[code]['name']  = detail.name;
-            rawList[code]['unit']  = detail.unit;
-            rawList[code]['price'] = detail.price;
+        count = parseInt(good[2], 10) || 1;
+
+        if(!goodList[code]) {
+            detail = getGoodDetail(code);
+            promoteType = getPromoteTypes(code);
+
+            goodList[code] = {
+                'count'    : 0,
+                'name'     : detail.name,
+                'unit'     : detail.unit,
+                'price'    : detail.price,
+                'freeCount': 0,
+                'promote'  : PromotionPolicy[promoteType],
+                'fPrice'   : formatCurrency(detail.price)
+            };
         }
-        rawList[code]['count'] += count;
+
+        goodList[code]['count'] += count;
     }
 
-    return rawList;
+    return goodList;
+}
+
+function getPromoteTypes(code) {
+    var promotions = loadPromotions(),
+        i, result = 'NORMAL';
+
+    for(i=0; i<promotions.length; i++) {
+        if(promotions[i]['barcodes'].indexOf(code) > -1) {
+            result = promotions[i]['type'];
+            break;
+        }
+    }
+
+    return result;
 }
 
 /**
- * calc discount
+ * calc promote
  */
-function promote(list) {
-    var promotions = loadPromotions(),
-        type, barcodes, code, item, i;
+function calcPromote(list) {
+    var code, item, i;
 
-    for(i=0; i<promotions.length; i++) {
-        type = promotions[i]['type'];
-        barcodes = promotions[i]['barcodes'];
-
-        for(code in list) {
-            item = list[code];
-            item.freeCount = 0;
-            item.actualCount = item.count;
-            
-            if('BUY_TWO_GET_ONE_FREE' == type) {
-                if(~barcodes.indexOf(code)) {
-                    item = list[code];
-                    item.freeCount = Math.floor(item.count / 3);
-                }
-                item.actualCount = item.count - item.freeCount;                                         
-            }
-            item.formattedPrice = formatCurrency(item.price);
-        }
+    for(code in list) {
+        item = list[code];
+        item.promote(item);
+        item.actualCount = item.count - item.freeCount;
     }
 
     return list;
 }
 
-
-
 /**
- * format the currency
+ * render for output
  */
-function formatCurrency(price) {
-    return Math.floor(price) + '.' +(price * 100).toString().substr(-2); 
-}
-
-/**
- * format output
- */
-function processList(rawList) {
-    var result = '***<没钱赚商店>购物清单***',
-        payList = [],
+function renderList(rawList) {
+    var payList = [],
         freeList = [],
         total = save = 0,
         code, item, price;
@@ -94,41 +125,44 @@ function processList(rawList) {
     for(code in rawList) {
         item = rawList[code];
         if(item.actualCount > 0) {
-            price = item.price * item.actualCount;
-            payList.push('名称：' + item.name + '，' +
-                         '数量：' + item.count + item.unit + '，' + 
-                         '单价：' + item.formattedPrice + '(元)，' + 
-                         '小计：' + formatCurrency(price) + '(元)');
-            total += price;
+            subtotal = item.price * item.actualCount;
+            payList.push(formatStr(GOOD_TEMPLATE, {
+                name     : item.name,
+                amount   : item.count + item.unit,
+                fPrice   : item.fPrice,
+                subTotal : formatCurrency(subtotal)
+            }));
+
+            total += subtotal;
         }
 
         if(item.freeCount > 0) {
             save += item.price * item.freeCount;
-            freeList.push('名称：' + item.name + '，' +
-                          '数量：' + item.freeCount + item.unit);
+            
+            freeList.push(formatStr(PROMOTION_TEMPLATE, {
+                name: item.name, amount: item.freeCount + item.unit
+            }));
         }
     }
 
-    return result + '\n' +
-            payList.join('\n') + '\n' +
-            '----------------------' + '\n' +
-            '挥泪赠送商品：' + '\n' +
-            freeList.join('\n') + '\n' +
-            '----------------------\n' +
-            '总计：' + formatCurrency(total) +'(元)' + '\n' +
-            '节省：' + formatCurrency(save)  + '(元)' + '\n' +
-            '**********************'
+    return formatStr(RECEIPT_TEMPLATE, {
+                payList : payList.join('\n'),
+                freeList: freeList.join('\n'),
+                total   : formatCurrency(total),
+                saved   : formatCurrency(save)
+            })
 }
 
 /**
  * main
  */
 function printInventory(arr) {
-    var rawList = parseList(arr);
-    var newList = promote(rawList);
-    var displaylist = processList(rawList);
+    var rawList = getDetailedList(arr);
+    var newList = calcPromote(rawList);
+    var displaylist = renderList(rawList);
     console.log(displaylist);
 }
 
 window.printInventory = printInventory;
+
 })(window)
